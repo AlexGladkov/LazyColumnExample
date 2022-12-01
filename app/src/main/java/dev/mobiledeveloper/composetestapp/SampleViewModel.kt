@@ -2,11 +2,20 @@ package dev.mobiledeveloper.composetestapp
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.PagingSource
+import androidx.paging.PagingState
+import androidx.paging.cachedIn
+import coil.network.HttpException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 data class SampleUserCellModel(
     val username: String,
@@ -27,6 +36,10 @@ data class SampleViewState(
 class SampleViewModel : ViewModel() {
     private val _viewState = MutableStateFlow(SampleViewState())
     val viewState: StateFlow<SampleViewState> = _viewState
+
+    val users: Flow<PagingData<SampleUserCellModel>> = Pager(PagingConfig(pageSize = 10)) {
+        UserDataSource()
+    }.flow.cachedIn(viewModelScope)
 
     fun obtainEvent(event: SampleEvent) {
         when (event) {
@@ -51,21 +64,44 @@ class SampleViewModel : ViewModel() {
     private fun refreshData() {
 
     }
+}
 
-    private fun generateData(count: Int): List<SampleUserCellModel> {
-        val data = mutableListOf<SampleUserCellModel>()
-        for (i in 0 until count) {
-            data.add(
-                SampleUserCellModel(
-                    username = generateRandomUsername(),
-                    avatar = generateRandomAvatar(),
-                    description = generateRandomDescription()
-                )
-            )
-        }
+class UserDataSource : PagingSource<Int, SampleUserCellModel>() {
 
-        return data
+    override fun getRefreshKey(state: PagingState<Int, SampleUserCellModel>): Int? {
+        return state.anchorPosition
     }
+
+    override suspend fun load(params: LoadParams<Int>): LoadResult<Int, SampleUserCellModel> {
+        return try {
+            val nextPage = params.key ?: 1
+            val userList = generateData(count = 20)
+            LoadResult.Page(
+                data = userList,
+                prevKey = if (nextPage == 1) null else nextPage - 1,
+                nextKey = if (userList.isEmpty()) null else nextPage + 1
+            )
+        } catch (exception: IOException) {
+            return LoadResult.Error(exception)
+        } catch (exception: HttpException) {
+            return LoadResult.Error(exception)
+        }
+    }
+}
+
+private fun generateData(count: Int): List<SampleUserCellModel> {
+    val data = mutableListOf<SampleUserCellModel>()
+    for (i in 0 until count) {
+        data.add(
+            SampleUserCellModel(
+                username = generateRandomUsername(),
+                avatar = generateRandomAvatar(),
+                description = generateRandomDescription()
+            )
+        )
+    }
+
+    return data
 }
 
 internal fun generateRandomAvatar(): String = listOf(

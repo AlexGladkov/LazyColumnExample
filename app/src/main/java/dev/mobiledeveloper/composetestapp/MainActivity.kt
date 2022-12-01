@@ -27,6 +27,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.paging.LoadState
+import androidx.paging.compose.collectAsLazyPagingItems
+import androidx.paging.compose.items
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
@@ -55,25 +58,34 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun SampleScreen(viewModel: SampleViewModel) {
-    val viewState = viewModel.viewState.collectAsState().value
+    val users = viewModel.users.collectAsLazyPagingItems()
 
-    SampleView(viewState = viewState, onEventHandle = {
-        viewModel.obtainEvent(it)
-    })
-
-    LaunchedEffect(key1 = Unit) {
-        viewModel.obtainEvent(SampleEvent.ScreenLoaded)
-    }
-}
-
-@Composable
-fun SampleView(viewState: SampleViewState, onEventHandle: (SampleEvent) -> Unit) {
     LazyColumn {
-        viewState.data.forEach {
-            item {
+        items(users) { item ->
+            item?.let {
                 SampleUserCell(model = it)
             }
         }
+
+        users.apply {
+            when {
+                loadState.refresh is LoadState.Loading -> {
+                    // First time loading
+                }
+
+                loadState.append is LoadState.Loading -> {
+                    // Next page loading
+                }
+
+                loadState.append is LoadState.Error -> {
+                    // Display next page error
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(key1 = Unit) {
+        viewModel.obtainEvent(SampleEvent.ScreenLoaded)
     }
 }
 
@@ -87,9 +99,10 @@ fun SampleUserCell(model: SampleUserCellModel) {
                 .build(),
             contentDescription = model.avatar,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.size(60.dp).clip(CircleShape)
+            modifier = Modifier
+                .size(60.dp)
+                .clip(CircleShape)
         )
-
 
         Spacer(modifier = Modifier.width(16.dp))
 
